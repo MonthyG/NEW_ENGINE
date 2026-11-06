@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { api, setUnauthorizedHandler } from './api'
 import { useApp } from './context'
 import type { Me } from './types'
@@ -13,9 +13,11 @@ import Policy from './pages/Policy'
 import Access from './pages/Access'
 import Activity from './pages/Activity'
 import Settings from './pages/Settings'
+import Welcome from './pages/Welcome'
 
 export default function App() {
-  const { setMe } = useApp()
+  const { setMe, customer, sites, sitesLoaded } = useApp()
+  const loc = useLocation()
   const [checked, setChecked] = useState(false)
 
   useEffect(() => {
@@ -31,13 +33,16 @@ export default function App() {
   }, [])
 
   if (!checked) return null
+  // A customer with no site yet has not set the WAF up: the manager's own site list is the record.
+  if (customer && !sitesLoaded) return null
+  if (customer && sites.length === 0 && loc.pathname !== '/welcome') return <Navigate to="/welcome" replace />
 
   return (
     <Routes>
       <Route element={<Shell />}>
         <Route path="/overview" element={<Overview />} />
         <Route path="/sites" element={<Sites />} />
-        <Route path="/sites/new" element={<SiteNew />} />
+        <Route path="/sites/new" element={customer ? <Welcome start="setup" inShell /> : <SiteNew />} />
         <Route path="/sites/:id" element={<Site />} />
         <Route path="/threats" element={<Threats />} />
         <Route path="/access" element={<Access />} />
@@ -49,6 +54,7 @@ export default function App() {
         <Route path="/settings" element={<Navigate to="/settings/certificates" replace />} />
         <Route path="/settings/:area" element={<Settings />} />
       </Route>
+      <Route path="/welcome" element={<Welcome />} />
       <Route path="*" element={<Navigate to="/overview" replace />} />
     </Routes>
   )

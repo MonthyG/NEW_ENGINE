@@ -5,6 +5,8 @@ import type { AppProfile, Me, Protection, SiteView, SystemInfo } from './types'
 interface AppState {
   me: Me | null
   setMe: (m: Me | null) => void
+  /** Signed in through the portal with a customer's project token: sees only their own sites. */
+  customer: boolean
   sites: SiteView[]
   sitesLoaded: boolean
   siteById: Record<string, SiteView>
@@ -58,10 +60,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(t)
   }, [me, reloadSites, reloadSystem, notifyError])
 
+  const customer = me?.kind === 'token' && !!me.project
   const siteById = useMemo(() => Object.fromEntries(sites.map((s) => [s.id, s])), [sites])
 
   return (
-    <Ctx.Provider value={{ me, setMe, sites, sitesLoaded, siteById, reloadSites, protections, apps, system, reloadSystem, notify, notifyError }}>
+    <Ctx.Provider value={{ me, setMe, customer, sites, sitesLoaded, siteById, reloadSites, protections, apps, system, reloadSystem, notify, notifyError }}>
       {children}
       {toast && (
         <div key={toast.key} className={'toast' + (toast.error ? ' error' : '')} role={toast.error ? 'alert' : 'status'}>

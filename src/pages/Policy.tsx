@@ -22,7 +22,7 @@ export interface GuardDef {
   stopsLabel: string
   showStops: (r: Resolved) => boolean
   toggle?: (r: Resolved, save: Save, openEditor: () => void) => { checked: boolean; onChange: (v: boolean) => void }
-  Editor: (p: EditorProps) => JSX.Element
+  Editor: (p: EditorProps) => React.JSX.Element
 }
 
 export const guardDefs: Record<GuardKey, GuardDef> = {

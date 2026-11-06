@@ -26,6 +26,8 @@ const groups = [
 ]
 const pageLabel: Record<string, string> = Object.fromEntries(groups.flatMap((g) => g.pages.flatMap((p) =>
   'children' in p && p.children ? p.children.map((c) => [c.to.slice(1), c.label]) : [[p.to.slice(1), p.label]])))
+// Customers manage only their own sites; global rules, IP lists and the system are the operator's.
+const customerGroups = groups.filter((g) => g.name !== 'System').map((g) => ({ ...g, pages: g.pages.filter((p) => p.to !== '/access') }))
 const areaLabel: Record<string, string> = { certificates: 'Certificates', account: 'Your account', tokens: 'API tokens', system: 'System' }
 
 const modeDot: Record<string, string> = { block: 'var(--positive)', detect: 'var(--warning)', off: '#5b5b60' }
@@ -35,13 +37,13 @@ const EDGE = DEMO ? 'edge-tpe-01' : window.location.hostname
 
 /** The menu's content: the pages, then every site. Shared by the sidebar and the phone drawer. */
 function Menu({ onNavigate, counts }: { onNavigate?: () => void; counts: SiteCounts }) {
-  const { sites, system } = useApp()
+  const { sites, system, customer } = useApp()
   const ordered = [...sites].sort((a, b) => (counts[b.id]?.blocked ?? 0) - (counts[a.id]?.blocked ?? 0) || siteName(a).localeCompare(siteName(b)))
   const threats = Object.values(counts).reduce((n, c) => n + (c.threats ?? 0), 0)
   return (
     <>
       <nav aria-label="Pages">
-        {groups.map((g) => (
+        {(customer ? customerGroups : groups).map((g) => (
           <div key={g.name}>
             <div className="nav-group">{g.name}</div>
             {g.pages.map((p) => 'children' in p && p.children ? (
@@ -74,12 +76,12 @@ function Menu({ onNavigate, counts }: { onNavigate?: () => void; counts: SiteCou
         ))}
       </ul>
       <NavLink to="/sites/new" className="drawer-add" onClick={onNavigate}><Icon name="plus" /> Add a site</NavLink>
-      <div className="node-status" aria-label="Edge status">
+      {!customer && <div className="node-status" aria-label="Edge status">
         <div><span>Edge</span><b>{EDGE}</b></div>
         <div><span>Engine</span><b className={system && !system.engine_ok ? 'bad' : ''}>{system ? (system.engine_ok ? 'running' : 'unreachable') : 'checking'}</b></div>
         <div><span>Rule set</span><b>{system?.ruleset ?? '-'}</b></div>
         <div><span>Console</span><b>v{system?.version ?? '-'}</b></div>
-      </div>
+      </div>}
     </>
   )
 }
@@ -122,7 +124,7 @@ function readHidden(): boolean {
 }
 
 export default function Shell() {
-  const { system, sites, siteById } = useApp()
+  const { system, sites, siteById, customer } = useApp()
   const navigate = useNavigate()
   const loc = useLocation()
   const [drawer, setDrawer] = useState(() => DEMO && new URLSearchParams(window.location.hash.split('?')[1]).get('menu') === '1')
@@ -162,7 +164,7 @@ export default function Shell() {
           </button>
           <NavLink to="/overview" className="brand topbar-brand" aria-label="HostingInside WAF, overview"><Mark size={24} /><span className="product">WAF</span></NavLink>
           <nav className="crumbs" aria-label="You are here">
-            <span className="hide-s">{EDGE}</span><span className="sep hide-s">/</span>
+            {!customer && <><span className="hide-s">{EDGE}</span><span className="sep hide-s">/</span></>}
             {crumbs.map((c, i) => (
               <span key={i} style={{ display: 'contents' }}>
                 {i > 0 && <span className="sep">/</span>}
@@ -170,10 +172,12 @@ export default function Shell() {
               </span>
             ))}
           </nav>
-          <span className="env hide-s">{system?.ruleset ?? 'edge'}</span>
+          {!customer && <span className="env hide-s">{system?.ruleset ?? 'edge'}</span>}
           <span className="spacer" />
-          <span className={'dot hide-s' + (system && !system.engine_ok ? ' off' : '')} aria-hidden="true" />
-          <span className="engine hide-s">{system ? (system.engine_ok ? 'Engine running' : 'Engine unreachable') : 'Checking engine'}</span>
+          {!customer && <>
+            <span className={'dot hide-s' + (system && !system.engine_ok ? ' off' : '')} aria-hidden="true" />
+            <span className="engine hide-s">{system ? (system.engine_ok ? 'Engine running' : 'Engine unreachable') : 'Checking engine'}</span>
+          </>}
           <ThemeToggle />
           {!loc.pathname.startsWith('/sites/new') && <Btn kind="primary" small icon="plus" onClick={() => navigate('/sites/new')}>Add a site</Btn>}
         </header>

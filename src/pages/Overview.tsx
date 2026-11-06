@@ -58,7 +58,7 @@ function Clock() {
 }
 
 export default function Overview() {
-  const { sites, siteById, system, notify, notifyError } = useApp()
+  const { sites, siteById, system, customer, reloadSites, notify, notifyError } = useApp()
   const navigate = useNavigate()
   const [range, setRange] = useState<Range>('24h')
   const [site, setSite] = useState('')
@@ -78,8 +78,9 @@ export default function Overview() {
       api.get<Ov>('/stats/overview' + qs({ range, site })),
       api.get<Page<GroupRow>>('/attacks/groups' + qs({ range, site, size: 50 })),
       api.get<Record<string, Ban[]>>('/bans').catch(() => ({})),
-      api.get<SiteCounts>('/site-counts'),
-      api.get<Certificate[]>('/certificates'),
+      // operator-only: a customer's token gets 403 here, which must not blank the page
+      api.get<SiteCounts>('/site-counts').catch(() => ({})),
+      api.get<Certificate[]>('/certificates').catch(() => []),
       api.get<Page<Attack>>('/attacks' + qs({ range, site, size: 200 })),
     ]).then(([o, g, b, c, ce, a]) => {
       setOv(o); setSources(g.items); setBans(b); setCounts(c); setCerts(ce); setAttacks(a.items)
@@ -104,8 +105,16 @@ export default function Overview() {
   const ranked = [...sources].sort((a, b) => b.count - a.count || b.last.localeCompare(a.last))
   const top = ranked.find((g) => !watchSites.has(g.site_id))
   const topBan = top ? (bans[top.site_id] ?? []).find((b) => b.ip === top.client_ip) : undefined
-  const refuse = async (ip: string) => {
+  const refuse = async (ip: string, siteId: string) => {
     try {
+      if (customer) {
+        // a customer's token can't make global rules; refuse on the attacked site instead (PATCH replaces "access" whole)
+        const access = siteById[siteId]?.doc.access ?? {}
+        await api.patch(`/sites/${siteId}`, { access: { ...access, block_ips: [...new Set([...(access.block_ips ?? []), ip])] } })
+        await reloadSites()
+        notify(`${ip} is now refused on ${siteName(siteById[siteId], siteId)}`)
+        return
+      }
       await api.post('/rules', { name: `Refuse ${ip}`, enabled: true, action: 'block', sites: [], match: { ip: [ip] }, priority: 0 })
       notify(`${ip} is now refused on every site`)
     } catch (e) {
@@ -132,7 +141,7 @@ export default function Overview() {
   const banRows = Object.entries(bans).flatMap(([s, list]) => list.map((b) => ({ site: s, ...b })))
   type Decision = { lvl: 'crit' | 'mod' | 'low'; text: React.ReactNode; why: string; to?: string; action: string; run?: () => void }
   const decisions: Decision[] = []
-  if (active) decisions.push({ lvl: 'crit', text: <><strong>{active.client_ip}</strong> is attacking {siteName(siteById[active.site_id], active.site_id)} now</>, why: `${active.count} attacks, last ${ago(active.last)}`, action: 'Refuse', run: () => refuse(active.client_ip) })
+  if (active) decisions.push({ lvl: 'crit', text: <><strong>{active.client_ip}</strong> is attacking {siteName(siteById[active.site_id], active.site_id)} now</>, why: `${active.count} attacks, last ${ago(active.last)}`, action: 'Refuse', run: () => refuse(active.client_ip, active.site_id) })
   for (const c of certs) {
     const d = daysLeft(c.not_after)
     if (d <= 21) decisions.push({ lvl: d <= 7 ? 'crit' : 'mod', text: <>Certificate for <strong>{c.dns_names?.[0] ?? c.name}</strong> expires in {d} days</>, why: `used by ${c.used_by.length || 'no'} site${c.used_by.length === 1 ? '' : 's'}`, to: '/settings/certificates', action: 'Replace' })
@@ -188,7 +197,7 @@ export default function Overview() {
           <p className="sub">{finding}</p>
           {status}
         </div>
-        {top && <div className="actions"><Btn onClick={() => refuse(top.client_ip)}>Refuse {top.client_ip} everywhere</Btn></div>}
+        {top && <div className="actions"><Btn onClick={() => refuse(top.client_ip, top.site_id)}>Refuse {top.client_ip}{customer ? '' : ' everywhere'}</Btn></div>}
       </div>
 
       <div className="query" role="search" aria-label="What the overview shows">

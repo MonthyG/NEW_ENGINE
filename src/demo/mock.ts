@@ -20,6 +20,14 @@ const ops = {
 
 const HOUR = 3600_000
 let loggedIn = true
+// ?as=customer opens the demo as a portal customer on their first visit: no sites, no traffic, no operator pages.
+const CUSTOMER = [window.location.search, window.location.hash.split('?')[1] ?? ''].some((p) => new URLSearchParams(p).get('as') === 'customer')
+const TEMPLATE: SiteView = JSON.parse(JSON.stringify(D.sites[1]))
+if (CUSTOMER) {
+  D.sites.splice(0); D.attacks.splice(0); D.events.splice(0); D.buckets.splice(0)
+  for (const k of Object.keys(D.bans)) delete D.bans[k]
+}
+const OPERATOR_ONLY = /^\/(site-counts|certificates|ip-groups|rules|waitroom|system|rulesets|backups|alerts|tokens)(\/|$)/
 let totp = false
 const nid = (p: string) => p + '_' + Math.random().toString(16).slice(2, 14).padEnd(12, '0')
 
@@ -157,6 +165,8 @@ export function demoRequest(method: string, fullPath: string, body: any): Res {
   const seg = path.split('/').filter(Boolean)
   const key = `${method} /${seg[0] ?? ''}`
 
+  if (CUSTOMER && path === '/auth/me') return ok({ username: 'api', totp_enabled: false, kind: 'token', project: 'lantern-tea' })
+  if (CUSTOMER && OPERATOR_ONLY.test(path)) return { status: 403, body: { error: 'this needs an operator' } }
   if (path === '/auth/me') return loggedIn ? ok({ username: 'yu-ting', totp_enabled: totp, kind: 'user' }) : { status: 401, body: { error: 'missing or invalid credentials' } }
   if (path === '/auth/login') { loggedIn = true; return ok({ username: body?.username || 'yu-ting', totp_enabled: totp, kind: 'user' }) }
   if (path === '/auth/logout') { loggedIn = false; return ok() }
@@ -210,12 +220,14 @@ export function demoRequest(method: string, fullPath: string, body: any): Res {
     if (method === 'GET') return s ? ok(s) : notFound
     if (method === 'POST' && !seg[1]) {
       const id = nid('s')
-      const ns: SiteView = JSON.parse(JSON.stringify(D.sites[1]))
+      const ns: SiteView = JSON.parse(JSON.stringify(TEMPLATE))
       ns.id = id
       ns.created = new Date().toISOString()
       ns.resolved.access.rules = []
       ns.resolved.access.block_countries = []
       patchSite(ns, body)
+      ns.resolved.name = body?.name ?? ''
+      ns.doc = { ...body }
       D.sites.push(ns)
       return ok(ns)
     }
