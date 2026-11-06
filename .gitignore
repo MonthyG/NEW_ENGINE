@@ -1,5 +1,22 @@
-node_modules/
-dist/
-dist-demo/
-*.local
+# dependencies
+/node_modules
+
+# production
+/dist
+/dist-demo
+
+# misc
 .DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+
+# env files (copy .env.example to .env)
+.env
+.env.*
+!.env.example
+*.local
+
+# typescript
+*.tsbuildinfo

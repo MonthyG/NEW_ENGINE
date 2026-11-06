@@ -1,5 +1,28 @@
+# VCS / build output
+.git
+.gitignore
 node_modules
 dist
 dist-demo
-.git
+*.tsbuildinfo
+npm-debug.log*
+
+# Secrets
+.env
+.env.*
+.npmrc*
 *.local
+
+# Docker / CI
+Dockerfile
+.dockerignore
+.gitlab-ci.yml
+
+# Editor, agent and tooling config not needed for `vite build`
+.DS_Store
+.vscode
+.idea
+.codex
+.claude
+.mcp.json
+*.md
