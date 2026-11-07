@@ -275,10 +275,12 @@ textarea.input { height: auto; min-height: 96px; padding: 8px 12px; line-height:
 .check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .check input { width: 16px; height: 16px; accent-color: var(--accent); }
 
-.switch { appearance: none; flex: none; width: 32px; height: 18px; border-radius: 999px; background: var(--control); position: relative; cursor: pointer; transition: background-color var(--t-ui) ease; margin: 0; }
-.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform var(--t-ui) var(--ease-out); }
-.switch:checked { background: var(--positive); }
-.switch:checked::after { transform: translateX(14px); background: #fff; }
+.switch { appearance: none; flex: none; width: 36px; height: 20px; border-radius: 999px; background: var(--control); box-shadow: inset 0 0 0 1px var(--border); position: relative; cursor: pointer; transition: background-color var(--t-ui) ease, box-shadow var(--t-ui) ease; margin: 0; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / .3); transition: transform var(--t-ui) var(--ease-out); }
+.switch:checked { background: var(--positive); box-shadow: none; }
+.switch:checked::after { transform: translateX(16px); }
+.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 999px; }
+.switch:disabled { opacity: .5; cursor: not-allowed; }
 
 /* tabs and segments: the selected one carries the 1px accent line, as wide as its label */
 .tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--border); margin-bottom: var(--gap); overflow-x: auto; }
