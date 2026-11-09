@@ -1,0 +1,25 @@
+{
+  "name": "shop",
+  "domains": ["shop.example.com"],
+  "upstreams": ["10.0.0.5:8080"],
+  "tls": { "mode": "auto" },
+  "waf": {
+    "mode": "block",
+    "paranoia": 1,
+    "anomaly_threshold": 5,
+    "protections": { "java": false, "nodejs": false }
+  },
+  "rate_limit": {
+    "access": { "requests": 100, "window_sec": 10, "ban_sec": 300 }
+  },
+  "access": {
+    "rules": [
+      { "action": "block", "match": { "path_prefix": "/admin", "not_ip": ["203.0.113.10"] } }
+    ]
+  },
+  "bot_challenge": { "enabled": false },
+  "block_page": {
+    "title": "Request blocked",
+    "message": "Your request was blocked. Contact support@example.com and quote the event ID."
+  }
+}

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{.Title}}</title>
+<style>
+body{font:15px system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;background:#f3f6f8;color:#1d2b36}
+form{background:#fff;padding:32px 28px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.08);width:300px}
+h1{font-size:19px;margin:0 0 20px}
+label{display:block;font-size:13px;color:#5c6b77;margin:12px 0 4px}
+input{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #d4dce2;border-radius:6px;font-size:15px}
+button{margin-top:20px;width:100%;padding:10px;border:0;border-radius:6px;background:#0fa5a0;color:#fff;font-size:15px;cursor:pointer}
+.err{color:#c62828;font-size:13px;margin-top:12px}
+small{display:block;text-align:center;margin-top:14px;color:#9aa7b1}
+</style></head><body>
+<form method="post" action="{{.Action}}">
+<h1>{{.Title}}</h1>
+<input type="hidden" name="r" value="{{.Return}}">
+<label for="u">Username</label><input id="u" name="username" autocomplete="username" required autofocus>
+<label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required>
+{{if .Error}}<div class="err">{{.Error}}</div>{{end}}
+<button type="submit">Sign in</button>
+<small>Protected by HostingInside WAF</small>
+</form></body></html>

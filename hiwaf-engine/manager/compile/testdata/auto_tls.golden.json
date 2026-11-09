@@ -1,0 +1,274 @@
+{
+  "admin": {
+    "listen": "127.0.0.1:2019"
+  },
+  "apps": {
+    "http": {
+      "http_port": 80,
+      "https_port": 443,
+      "servers": {
+        "plain": {
+          "listen": [
+            ":80"
+          ],
+          "routes": [
+            {
+              "handle": [
+                {
+                  "handler": "static_response",
+                  "headers": {
+                    "Location": [
+                      "https://{http.request.host}{http.request.uri}"
+                    ]
+                  },
+                  "status_code": 308
+                }
+              ],
+              "match": [
+                {
+                  "host": [
+                    "a.com"
+                  ]
+                }
+              ],
+              "terminal": true
+            },
+            {
+              "handle": [
+                {
+                  "body": "unknown site",
+                  "handler": "static_response",
+                  "status_code": 404
+                }
+              ]
+            }
+          ]
+        },
+        "waf": {
+          "automatic_https": {
+            "disable_redirects": true
+          },
+          "errors": {
+            "routes": [
+              {
+                "handle": [
+                  {
+                    "body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Too many requests</title><style>body{margin:0;font:15px system-ui,-apple-system,\"Segoe UI\",sans-serif;background:#f3f6f8;color:#1d2b36;display:flex;min-height:100vh;align-items:center;justify-content:center}.c{background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.07);padding:40px 44px;max-width:460px;text-align:center}.i{width:72px;height:72px;border-radius:50%;margin:0 auto 18px;display:flex;align-items:center;justify-content:center;background:#f59e0b1a}h1{font-size:21px;margin:0 0 10px}p{color:#5c6b77;margin:0 0 6px;line-height:1.5}.m{margin-top:22px;padding-top:16px;border-top:1px solid #eef1f3;font-size:12px;color:#9aa7b1}code{font-family:ui-monospace,Consolas,monospace;color:#5c6b77}</style></head><body><div class=\"c\"><div class=\"i\"><svg width=\"36\" height=\"36\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#f59e0b\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg></div><h1>Too many requests</h1><p>You are sending requests too fast. Please wait a moment and try again.</p><div class=\"m\">Status <code>{http.error.status_code}</code> &middot; Event ID <code>{http.error.id}</code><br>Protected by HostingInside WAF</div></div></body></html>",
+                    "handler": "static_response",
+                    "headers": {
+                      "Cache-Control": [
+                        "no-store"
+                      ],
+                      "Content-Type": [
+                        "text/html; charset=utf-8"
+                      ]
+                    },
+                    "status_code": "{http.error.status_code}"
+                  }
+                ],
+                "match": [
+                  {
+                    "expression": "{http.error.status_code} == 429",
+                    "host": [
+                      "a.com"
+                    ]
+                  }
+                ],
+                "terminal": true
+              },
+              {
+                "handle": [
+                  {
+                    "body": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Request blocked</title><style>body{margin:0;font:15px system-ui,-apple-system,\"Segoe UI\",sans-serif;background:#f3f6f8;color:#1d2b36;display:flex;min-height:100vh;align-items:center;justify-content:center}.c{background:#fff;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.07);padding:40px 44px;max-width:460px;text-align:center}.i{width:72px;height:72px;border-radius:50%;margin:0 auto 18px;display:flex;align-items:center;justify-content:center;background:#e5484d1a}h1{font-size:21px;margin:0 0 10px}p{color:#5c6b77;margin:0 0 6px;line-height:1.5}.m{margin-top:22px;padding-top:16px;border-top:1px solid #eef1f3;font-size:12px;color:#9aa7b1}code{font-family:ui-monospace,Consolas,monospace;color:#5c6b77}</style></head><body><div class=\"c\"><div class=\"i\"><svg width=\"36\" height=\"36\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#e5484d\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\"/><line x1=\"9\" y1=\"9\" x2=\"15\" y2=\"15\"/><line x1=\"15\" y1=\"9\" x2=\"9\" y2=\"15\"/></svg></div><h1>Request blocked</h1><p>Your request was blocked by the web application firewall.</p><div class=\"m\">Status <code>{http.error.status_code}</code> &middot; Event ID <code>{http.error.id}</code><br>Protected by HostingInside WAF</div></div></body></html>",
+                    "handler": "static_response",
+                    "headers": {
+                      "Cache-Control": [
+                        "no-store"
+                      ],
+                      "Content-Type": [
+                        "text/html; charset=utf-8"
+                      ]
+                    },
+                    "status_code": "{http.error.status_code}"
+                  }
+                ],
+                "match": [
+                  {
+                    "host": [
+                      "a.com"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "listen": [
+            ":443"
+          ],
+          "routes": [
+            {
+              "handle": [
+                {
+                  "handler": "subroute",
+                  "routes": [
+                    {
+                      "handle": [
+                        {
+                          "body": "loop detected: this site's origin points back at the WAF",
+                          "handler": "static_response",
+                          "status_code": 508
+                        }
+                      ],
+                      "match": [
+                        {
+                          "header": {
+                            "Hi-Waf-Loop": []
+                          }
+                        }
+                      ],
+                      "terminal": true
+                    },
+                    {
+                      "handle": [
+                        {
+                          "handler": "reverse_proxy",
+                          "headers": {
+                            "request": {
+                              "delete": [
+                                "X-Hi-Waf-Tx"
+                              ],
+                              "set": {
+                                "Hi-Waf-Loop": [
+                                  "1"
+                                ]
+                              }
+                            }
+                          },
+                          "upstreams": [
+                            {
+                              "dial": "10.0.0.1:80"
+                            }
+                          ]
+                        }
+                      ],
+                      "match": [
+                        {
+                          "vars": {
+                            "{http.vars.hi_skip}": [
+                              "true"
+                            ]
+                          }
+                        }
+                      ],
+                      "terminal": true
+                    },
+                    {
+                      "handle": [
+                        {
+                          "handler": "hi_ratelimit",
+                          "site_id": "s_aaaaaaaaaaaa",
+                          "attack": {
+                            "requests": 10,
+                            "window_sec": 60,
+                            "ban_sec": 1800
+                          },
+                          "error": {
+                            "requests": 50,
+                            "window_sec": 60,
+                            "ban_sec": 600
+                          }
+                        },
+                        {
+                          "directives": "Include @coraza.conf-recommended\nInclude @crs-setup.conf.example\nSecAction \"id:900000,phase:1,pass,nolog,setvar:tx.blocking_paranoia_level=1\"\nSecAction \"id:900110,phase:1,pass,nolog,setvar:tx.inbound_anomaly_score_threshold=5,setvar:tx.outbound_anomaly_score_threshold=4\"\nSecAction \"id:900010,phase:1,pass,nolog,setvar:tx.enforce_bodyproc_urlencoded=1\"\nSecAction \"id:900200,phase:1,pass,nolog,setvar:'tx.allowed_methods=GET HEAD POST OPTIONS PUT PATCH DELETE'\"\nSecAction \"id:900220,phase:1,pass,nolog,setvar:'tx.allowed_request_content_type=|application/x-www-form-urlencoded| |multipart/form-data| |multipart/related| |text/xml| |application/xml| |application/soap+xml| |application/json| |text/plain| |application/merge-patch+json| |application/json-patch+json| |application/vnd.api+json| |application/cloudevents+json| |application/cloudevents-batch+json|'\"\nSecRule REQUEST_HEADERS:Content-Type \"@rx ^application/[a-z0-9.-]+\\+json(?:\\s*;|$)\" \"id:10010,phase:1,t:none,t:lowercase,pass,nolog,ctl:requestBodyProcessor=JSON\"\nInclude @owasp_crs/*.conf\nSecRuleEngine On\nSecResponseBodyAccess Off\nSecRuleRemoveById 950000-956999\n",
+                          "handler": "waf",
+                          "load_owasp_crs": true,
+                          "tx_id_req_header": "X-Hi-Waf-Tx"
+                        },
+                        {
+                          "handler": "reverse_proxy",
+                          "headers": {
+                            "request": {
+                              "delete": [
+                                "X-Hi-Waf-Tx"
+                              ],
+                              "set": {
+                                "Hi-Waf-Loop": [
+                                  "1"
+                                ]
+                              }
+                            }
+                          },
+                          "upstreams": [
+                            {
+                              "dial": "10.0.0.1:80"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "match": [
+                {
+                  "host": [
+                    "a.com"
+                  ]
+                }
+              ],
+              "terminal": true
+            },
+            {
+              "handle": [
+                {
+                  "body": "unknown site",
+                  "handler": "static_response",
+                  "status_code": 404
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "pki": {
+      "certificate_authorities": {
+        "local": {
+          "install_trust": false
+        }
+      }
+    }
+  },
+  "logging": {
+    "logs": {
+      "default": {
+        "exclude": [
+          "http.handlers.waf",
+          "http.handlers.hi_access",
+          "http.handlers.hi_ratelimit",
+          "http.handlers.hi_challenge",
+          "http.handlers.hi_auth",
+          "http.handlers.hi_waitroom"
+        ]
+      },
+      "hi_events": {
+        "encoder": {
+          "format": "json"
+        },
+        "include": [
+          "http.handlers.waf",
+          "http.handlers.hi_access",
+          "http.handlers.hi_ratelimit",
+          "http.handlers.hi_challenge",
+          "http.handlers.hi_auth",
+          "http.handlers.hi_waitroom"
+        ],
+        "writer": {
+          "filename": "/var/log/hi-waf/events.log",
+          "output": "file",
+          "roll_size_mb": 100
+        }
+      }
+    }
+  }
+}

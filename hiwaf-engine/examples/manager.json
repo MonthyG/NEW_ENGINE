@@ -1,0 +1,13 @@
+{
+  "listen": "127.0.0.1:9000",
+  "db_path": "waf.db",
+  "caddy_admin": "http://localhost:2019",
+  "event_log": "events.log",
+  "api_keys": ["change-me-dev-key"],
+  "http_port": 8080,
+  "https_port": 8443,
+  "geoip_db": "",
+  "feeds_dir": "",
+  "trusted_proxies": [],
+  "acme_internal": true
+}

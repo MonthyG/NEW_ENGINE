@@ -1,0 +1,30 @@
+# dependencies
+console/node_modules/
+
+# production
+/bin/
+manager/console/dist/*
+!manager/console/dist/.keep
+dist-demo/
+
+# Go module cache (CI keeps it in the project dir)
+/.go/
+
+# runtime data
+*.db
+*.log
+*.mmdb
+
+# misc
+.DS_Store
+*.pem
+
+# env files (copy .env.example to .env)
+.env
+.env.*
+!.env.example
+
+# agent and tooling working files
+.superpowers/
+.agents/
+.claude/

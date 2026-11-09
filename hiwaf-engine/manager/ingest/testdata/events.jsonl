@@ -1,0 +1,5 @@
+{"level":"info","ts":1761200000.5,"logger":"http.handlers.hi_access","msg":"hi_event","event":"ip_block","site_id":"s_aaaaaaaaaaaa","client_ip":"1.2.3.4","host":"example.com","method":"GET","uri":"/admin","detail":"blocklist"}
+{"level":"info","ts":1761200001,"logger":"http.log.access","msg":"handled request","request":{"method":"GET"}}
+{"level":"warn","ts":1761200002,"logger":"http.handlers.waf","msg":"[client \"1.2.3.4\"] Coraza: Warning. SQL Injection Attack Detected [file \"x\"] [line \"1\"] [id \"942100\"] [msg \"SQL Injection Attack Detected via libinjection\"] [uri \"/?id=1\"] [unique_id \"s_aaaaaaaaaaaa-0123456789abcdef\"]"}
+{"level":"error","ts":1761200003,"logger":"http.handlers.waf","msg":"WAF rule violation detected"}
+{"level":"info","ts":1761200004,"logger":"http.handlers.hi_ratelimit","msg":"hi_event","event":"rate_limit_ban","site_id":"s_bbbbbbbbbbbb","client_ip":"5.6.7.8","until":"2025-10-23T06:43:24Z"}

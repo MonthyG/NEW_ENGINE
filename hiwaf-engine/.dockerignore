@@ -1,0 +1,35 @@
+# VCS / build output
+.git
+.gitignore
+.go
+bin
+console/node_modules
+console/dist-demo
+manager/console/dist/*
+!manager/console/dist/.keep
+
+# Secrets and runtime data
+.env
+.env.*
+*.pem
+*.db
+*.log
+*.mmdb
+
+# Docker / CI
+Dockerfile
+.dockerignore
+.gitlab-ci.yml
+.github
+compose.yaml
+
+# Editor, agent and tooling config not needed for the build
+# (only the top-level README: manager/crsplugins/files is embedded whole)
+.DS_Store
+.vscode
+.idea
+.codex
+.claude
+.agents
+.superpowers
+README.md
