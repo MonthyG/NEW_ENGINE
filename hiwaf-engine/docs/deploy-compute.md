@@ -1,17 +1,26 @@
 # Deploy the WAF on a compute host, from GitHub
 
-This guide takes you from a fresh laptop to a working WAF in front of one
-floating IP, in transparent mode: the customer keeps their IP and DNS,
-nothing is installed in their VM, and only their TCP 80/443 goes through
-the WAF.
+This guide takes you from nothing to a working WAF in front of one floating
+IP, in transparent mode: the customer keeps their IP and DNS, nothing is
+installed in their VM, and only their TCP 80/443 goes through the WAF.
 
-It's the procedure first run on `hk1-cmpt4` on 13 Nov 2026, with `timi-waf`
-as the test customer. Every command says **where** it runs and **why**.
+You only need three things: **a laptop**, **the GitHub repo**, and **a
+compute host**. No build server, no Docker on the laptop, nothing on the
+controller or storage. GitHub builds the engine image; the laptop downloads
+it and sends it to the compute host over SSH.
+
+```
+GitHub (code + built image) ──gh──► laptop ──ssh──► compute host (engine + waf-steer)
+```
+
+Every command says **where** it runs and **why**. It's the procedure first
+run on `hk1-cmpt4` on 13 Nov 2026; the example values are from that run.
 
 - [What you end up with](#what-you-end-up-with)
 - [Before you start](#before-you-start)
+- [Part 0: a VM to protect](#part-0-a-vm-to-protect)
 - [Part 1: get the code](#part-1-get-the-code)
-- [Part 2: build the engine image](#part-2-build-the-engine-image)
+- [Part 2: get the engine image from GitHub](#part-2-get-the-engine-image-from-github)
 - [Part 3: copy the image to the compute host](#part-3-copy-the-image-to-the-compute-host)
 - [Part 4: install on the compute host](#part-4-install-on-the-compute-host)
 - [Part 5: protect a floating IP](#part-5-protect-a-floating-ip)
@@ -46,17 +55,17 @@ Nothing goes on the controller, storage, or any customer VM.
 
 You need:
 
-- **A laptop** with `git`, `ssh` and `curl`. A Mac is fine.
-- **Access to the GitHub repo** `MonthyG/NEW_ENGINE` (it's private): an SSH
-  key added to your GitHub account, or the GitHub CLI (`gh auth login`).
-- **A build machine with Docker**, x86_64 (Intel/AMD). This can be any Linux
-  VM you own (we used `timi-waf`), or your laptop if it has Docker. See
-  [Part 2](#part-2-build-the-engine-image) for why not the compute host.
-- **Root SSH to the compute host** (ours: port 11911).
-- **A floating IP to protect**, on a VM that runs on that compute host, with
-  a web server on port 80. Its security group must allow TCP 80/443 from
-  anywhere, or at least from `100.64.255.2` (the engine's address, see
-  [Part 6](#part-6-test-it)).
+- **A laptop** with macOS or Linux (on Windows, use WSL), with `git`, `ssh`
+  and `curl`. They're already there on a Mac.
+- **The GitHub CLI** `gh`, to download the image GitHub builds:
+  `brew install gh` on a Mac, then `gh auth login` once (pick GitHub.com,
+  SSH, and log in with the browser). *Why:* the repo `MonthyG/NEW_ENGINE` is
+  private, and `gh` uses your login for both the code and the image. No Docker
+  is needed on the laptop.
+- **Root SSH to the compute host** (ours: port 11911). Test it:
+  `ssh -p 11911 root@<compute> hostname`.
+- **A floating IP to protect**, on a VM that runs on that compute host. If
+  you have none, [Part 0](#part-0-a-vm-to-protect) creates a test one.
 
 ### Set your values once
 
@@ -66,7 +75,6 @@ here. Run this **on your laptop**, in every new terminal you open:
 ```sh
 COMPUTE=root@223.26.0.20     # the compute host (hk1-cmpt4)
 PORT=11911                   # its SSH port
-BUILD=ubuntu@223.26.0.228    # the build machine (a Linux VM with Docker)
 FIP=223.26.0.228             # the floating IP to protect
 ```
 
@@ -83,10 +91,57 @@ This is the most common mistake. Look at the prompt:
 |---|---|
 | `you@MacBook ~ %` | your laptop (macOS has no `systemctl`, `journalctl`, `ip`) |
 | `root@hk1-cmpt4:~#` | the compute host |
-| `ubuntu@timi-waf:~$` | the build or customer VM |
+| `ubuntu@waf-test:~$` | the test customer VM |
 
 Most steps here run **from the laptop** and reach the server with
 `ssh ... '<command>'`. That way you never have to guess where you are.
+
+---
+
+## Part 0: a VM to protect
+
+Skip this if you're protecting an existing VM: just put its floating IP in
+`FIP`.
+
+Otherwise create a test "customer" in the dashboard (Skyline/Horizon):
+
+1. **Image:** any Ubuntu cloud image. **Flavor:** the smallest.
+2. **Key pair:** yours, so you can read the VM's log later.
+3. **Security group:** allow TCP 22, 80 and 443 from `0.0.0.0/0`.
+4. **User data** (Configuration / Customization script), paste:
+
+   ```yaml
+   #cloud-config
+   write_files:
+     - path: /srv/www/index.html
+       content: "<h1>WAF test page</h1>"
+   runcmd:
+     - [systemd-run, --unit=testsite, --working-directory=/srv/www, python3, -u, -m, http.server, "80"]
+   ```
+
+   *Why:* at first boot it writes a page and serves it on port 80 with
+   Python, which Ubuntu already has. Nothing is downloaded into the VM, like
+   a real customer we must not touch.
+5. **Associate a floating IP** and set `FIP` to it.
+
+Check that it works and that it runs on **your** compute host:
+
+```sh
+# laptop
+curl -s http://$FIP/
+ssh -p $PORT $COMPUTE "ip netns exec \$(ip netns list | awk '/^fip-/{print \$1; exit}') ip route | grep $FIP"
+```
+
+✅ The page, and a line `<FIP> via 169.254... dev fpr-...`. *Why:* with DVR,
+a floating IP's route only exists in the fip namespace of the host running
+its VM. No line means the VM is on another compute host: install the WAF
+there (change `COMPUTE`), or migrate the VM.
+
+The VM's access log, which shows who called it:
+
+```sh
+ssh ubuntu@$FIP 'sudo journalctl -u testsite -n 3 -o cat'
+```
 
 ---
 
@@ -130,85 +185,49 @@ it holds internal IPs and firewall rules and must not be committed.
 
 ---
 
-## Part 2: build the engine image
+## Part 2: get the engine image from GitHub
 
-The engine is built from `hiwaf-engine/Dockerfile` (the `engine` target).
-There's no registry, so you build it yourself.
+GitHub Actions builds the image on every push to `main` that touches
+`hiwaf-engine/` (workflow [`Engine image`](../../.github/workflows/engine-image.yml)),
+checks that it starts, and keeps it for 30 days as an artifact called
+`cloudinside-waf`. You never build on the laptop or on the compute host.
 
-**Where to build.** Use any x86_64 machine with Docker, **not the compute
-host**: the build downloads about 2 GB of base images (Go, Debian) and
-compiles for several minutes, which would compete with customer VMs for
-CPU. Only the finished image (about 226 MB) goes to the compute host.
-
-### Option A: on a Linux build machine (what we did)
-
-```sh
-# laptop: send the code to the build machine
-TAG=$(git rev-parse --short HEAD)
-git archive HEAD:hiwaf-engine | ssh $BUILD 'rm -rf ~/hiwaf-build && mkdir -p ~/hiwaf-build && tar -x -C ~/hiwaf-build'
-```
-
-*Why:* `git archive` packs exactly the committed files of `hiwaf-engine/`
-(no local junk, no `.git`) and `tar -x` unpacks them on the build machine.
-The build machine doesn't need GitHub access this way. `TAG` is the short
-commit hash, so you can always tell which code an image contains.
-
-```sh
-# laptop: build there (takes a few minutes the first time)
-ssh $BUILD "cd ~/hiwaf-build && sudo docker build --target engine -t cloudinside-waf:$TAG -t cloudinside-waf:latest ."
-```
-
-*Why:* `--target engine` builds only the engine, not the manager or the
-console. `-t` gives the image two names: the commit tag (to know what it is)
-and `latest` (what the later steps use). `sudo` because the `ubuntu` user
-isn't in the `docker` group; drop it if yours is. The build context must be
-`hiwaf-engine/`, where the `Dockerfile` is.
-
-```sh
-# laptop: check it works
-ssh $BUILD 'sudo docker run --rm --network none cloudinside-waf:latest hi-waf version'
-```
-
-*Why:* runs the engine once with no network and prints its Caddy version
-(`v2.11.9 ...`). If this fails, the build is broken: don't continue.
-
-### Option B: on your laptop
-
-Only if your laptop has Docker. On an Apple Silicon Mac (M1/M2/...) you must
-build for Intel, because the compute host is x86_64:
+*Why GitHub:* the build downloads about 2 GB (Go, Debian) and compiles for
+minutes. On the compute host it would compete with customer VMs for CPU; on
+a laptop it needs Docker, and an Apple Silicon Mac would have to emulate
+Intel. GitHub's machines are x86_64 like the compute host.
 
 ```sh
 # laptop
-cd ~/NEW_ENGINE/hiwaf-engine
-TAG=$(git rev-parse --short HEAD)
-docker buildx build --platform linux/amd64 --target engine -t cloudinside-waf:$TAG -t cloudinside-waf:latest --load .
-cd ..
+RUN=$(gh run list --repo MonthyG/NEW_ENGINE --workflow engine-image.yml --branch main --status success -L 1 --json databaseId --jq '.[0].databaseId')
+gh run view $RUN --repo MonthyG/NEW_ENGINE
 ```
 
-*Why:* `--platform linux/amd64` cross-builds for Intel; without it the image
-won't start on the compute host (`exec format error`). It's much slower than
-Option A because the CPU is emulated. `--load` puts the result in your local
-Docker so Part 3 can send it.
+*Why:* finds the latest successful build of `main`. `gh run view` shows which
+commit it built: it should match `git log --oneline -1` from Part 1. If there's
+no run yet, or it's older than 30 days, start one:
+`gh workflow run engine-image.yml --repo MonthyG/NEW_ENGINE --ref main`, wait
+with `gh run watch`, then run the line above again.
 
----
+```sh
+# laptop
+rm -rf /tmp/waf-image && gh run download $RUN --repo MonthyG/NEW_ENGINE -n cloudinside-waf -D /tmp/waf-image
+ls -lh /tmp/waf-image
+```
+
+*Why:* downloads the image archive (`cloudinside-waf.tar.gz`, about 70 MB)
+from GitHub. The repo is private, so this uses your `gh` login.
 
 ## Part 3: copy the image to the compute host
 
 ```sh
-# laptop, Option A (image on the build machine)
-ssh $BUILD 'sudo docker save cloudinside-waf:latest | gzip' | ssh -p $PORT $COMPUTE 'gunzip | docker load'
+# laptop
+ssh -p $PORT $COMPUTE 'gunzip | docker load' < /tmp/waf-image/cloudinside-waf.tar.gz
 ```
 
-```sh
-# laptop, Option B (image on your laptop)
-docker save cloudinside-waf:latest | gzip | ssh -p $PORT $COMPUTE 'gunzip | docker load'
-```
-
-*Why:* this "streams" the image. `docker save` turns it into one archive,
-`gzip` shrinks it to about 70 MB, the pipe `|` carries the bytes through
-your laptop, and `docker load` adds it to Docker on the compute host. No
-file is written anywhere in between, and nothing is started. The compute
-host doesn't need internet or a registry.
+*Why:* `<` feeds the file into SSH, and on the compute host `gunzip` unpacks
+it and `docker load` adds the image to Docker. Nothing is started. The compute
+host needs no internet, no registry and no GitHub access.
 
 ✅ Ends with `Loaded image: cloudinside-waf:latest`.
 
@@ -414,14 +433,19 @@ status code. `200` means it reached the VM: steering isn't on (see
 
 **3. The VM sees the engine as the caller**
 
-Look at the web server's access log on the VM. The last lines must show
-`100.64.255.2`, not your own IP, and the attack must not be there at all.
-Your real IP is in the `X-Forwarded-For` header.
+```sh
+ssh ubuntu@$FIP 'sudo journalctl -u testsite -n 3 -o cat'
+```
+
+✅ The last lines show `100.64.255.2`, not your own IP, and the attack isn't
+there at all. *Why:* the engine opens its own connection to the VM. Your real
+IP is in the `X-Forwarded-For` header. For an existing VM, look at its web
+server's access log instead.
 
 **4. Other ports are untouched**
 
 ```sh
-ssh -o ConnectTimeout=5 <user>@$FIP hostname
+ssh -o ConnectTimeout=5 ubuntu@$FIP hostname
 ```
 
 ✅ Works as before: SSH is never steered.
@@ -499,12 +523,19 @@ diff snapshots/compute-before-waf.txt snapshots/compute-after-reset.txt | grep -
 ✅ `clean`. Other differences in the full diff (a new VM, a new port) are
 Neutron's own changes, not the WAF's.
 
+If you made a test VM in [Part 0](#part-0-a-vm-to-protect), delete it and
+release its floating IP in the dashboard. On the laptop, `rm -rf /tmp/waf-image`.
+
 ---
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| `gh: command not found` | GitHub CLI not installed | `brew install gh`, then `gh auth login` |
+| `HTTP 404` / `Could not resolve to a Repository` from `gh` | Not logged in, or your account has no access to the private repo | `gh auth status`; ask the repo owner for access |
+| `RUN` is empty, or `no artifact matches` | No successful build yet, or it's older than 30 days | `gh workflow run engine-image.yml --repo MonthyG/NEW_ENGINE --ref main`, then `gh run watch` |
+| `gzip: stdin: not in gzip format` | The download failed or the path is wrong | `ls -lh /tmp/waf-image`; download again |
 | `zsh: no such file or directory: hiwaf-engine/scripts/...` | Your laptop terminal isn't in the repo folder | `cd ~/NEW_ENGINE` |
 | `zsh: command not found: journalctl` (or `systemctl`, `ip`) | You ran a server command on your laptop | Wrap it: `ssh -p $PORT $COMPUTE '<command>'` |
 | `ssh: Could not resolve hostname` / empty `-p` | New terminal, variables not set | Run the [values block](#set-your-values-once) again |
@@ -514,7 +545,6 @@ Neutron's own changes, not the WAF's.
 | Engine exits right after `docker run` | Usually bad JSON in `engine.json` | `python3 -m json.tool /etc/hiwaf/engine.json`; `docker logs cloudinside-waf` |
 | Page times out after Part 5 | Security group blocks `100.64.255.2`, or a routing problem | Emergency stop first, then [4.6](#46-check-the-security-group) and `waf-steer.sh status` |
 | `no fip namespace here` | No DVR floating IP on this host yet | The protected VM must run on this host with a floating IP |
-| `exec format error` | Image built for ARM (Apple Silicon) | Rebuild with `--platform linux/amd64` ([Option B](#option-b-on-your-laptop)) |
 | `https://$FIP` fails | Expected: the test config has no certificate | Use `http://`; HTTPS needs an uploaded certificate |
 | A `pkill -f ...` over SSH kills your session | `pkill -f` also matches its own command line | Use `systemctl stop <unit>`, or `pkill -f "[h]ttp.server"` |
 

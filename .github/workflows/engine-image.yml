@@ -1,0 +1,45 @@
+# Builds the engine image (cloudinside-waf) on every push to main that touches
+# the engine, and keeps it as a downloadable artifact. There's no registry: the
+# deploy laptop downloads it with `gh run download` and streams it to a compute
+# host. See hiwaf-engine/docs/deploy-compute.md.
+name: Engine image
+
+on:
+  push:
+    branches: [main]
+    paths: ["hiwaf-engine/**", ".github/workflows/engine-image.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hiwaf-engine
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build
+        run: |
+          tag=$(git rev-parse --short HEAD)
+          docker build --target engine -t "cloudinside-waf:$tag" -t cloudinside-waf:latest .
+          echo "tag=$tag" >> "$GITHUB_ENV"
+
+      # The compute host runs it exactly like this; a broken build stops here.
+      - name: Check it starts
+        run: docker run --rm --network none cloudinside-waf:latest hi-waf version
+
+      - name: Save
+        run: docker save "cloudinside-waf:$tag" cloudinside-waf:latest | gzip > cloudinside-waf.tar.gz
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cloudinside-waf
+          path: hiwaf-engine/cloudinside-waf.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+          # Already gzipped.
+          compression-level: 0
