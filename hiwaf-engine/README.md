@@ -187,6 +187,49 @@ the engine's admin API has no login:
     WAF answers unknown names with `404 unknown site` on HTTP and fails the
     TLS handshake on HTTPS.
 
+## Steering on the compute hosts (`waf-steer`)
+
+In transparent mode, `scripts/waf-steer.sh` runs on every compute host and
+sends TCP 80/443 of protected floating IPs to that host's engine. Other
+ports, and floating IPs not on the list, keep the normal Neutron path.
+
+- Inside Neutron's `fip-*` namespace, packets arriving on `fg-*` for a
+  listed IP get mark `0x1455`, routing table 1455 sends them over the veth
+  `hiwaf-h`/`hiwaf-e` (`100.64.255.1`/`.2`) into the engine's network
+  namespace, and ports 80/443 there are redirected to the engine.
+- The engine sees the client's real address and proxies to the customer's
+  floating IP. That connection takes the normal path to the VM, so the VM
+  sees `100.64.255.2` as the source and the client in `X-Forwarded-For`. A
+  security group that allows web traffic only from some addresses must
+  also allow `100.64.255.2`.
+- UDP 443 to a protected IP is dropped, so HTTP/3 can't go around the WAF.
+- The engine runs as a container with `--network none`; `waf-steer`
+  connects it, and reconnects it after a restart.
+- `FAIL_MODE=open` (the default): if the engine is down, traffic goes
+  straight to the VMs, unprotected. `FAIL_MODE=closed`: their web ports are
+  unreachable until it is back.
+- The service re-applies everything every 5 seconds, because Neutron can
+  rebuild the namespace's iptables tables. Between a rebuild and the next
+  pass, traffic takes the normal path.
+
+The list is `/etc/hiwaf/waf-fips`, one IP per line, the same file on every
+host: only IPs living on a host ever arrive there. It is built from the
+sites' `floating_ip`. Lines that aren't plain IPv4 addresses are ignored.
+
+```sh
+install -m 755 scripts/waf-steer.sh /usr/local/sbin/
+install -m 644 scripts/waf-steer.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now waf-steer
+waf-steer.sh status
+```
+
+Stopping the service rolls everything back: `systemctl stop waf-steer`.
+Settings go in `/etc/hiwaf/waf-steer.env`; see the top of the script.
+
+`scripts/waf-steer-lab.sh` tests it on any Linux host with Docker, without
+OpenStack: it rebuilds the floating-IP path in network namespaces and
+checks steering, the WAF, fail-open and fail-closed, recovery and rollback.
+
 ## Manager configuration (`manager.json`)
 
 `install.sh` writes this file. Unknown keys are rejected at start.
