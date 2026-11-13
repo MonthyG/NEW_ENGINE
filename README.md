@@ -25,6 +25,8 @@ Browser ──► Dashboard ──► manager API (:9443) ──► hi-waf engin
   traffic for protected floating IPs steered to it, so customers change nothing.
   The manager drives all engines; see
   [Many engines](hiwaf-engine/README.md#many-engines-transparent-mode).
+  Step-by-step deploy on a compute host:
+  [docs/deploy-compute.md](hiwaf-engine/docs/deploy-compute.md).
 
 ## Quick start
 
