@@ -223,6 +223,9 @@ systemctl daemon-reload && systemctl enable --now waf-steer
 waf-steer.sh status
 ```
 
+For a full walkthrough, from a fresh clone to a protected floating IP with
+every command explained, see [docs/deploy-compute.md](docs/deploy-compute.md).
+
 Stopping the service rolls everything back: `systemctl stop waf-steer`.
 Settings go in `/etc/hiwaf/waf-steer.env`; see the top of the script.
 
