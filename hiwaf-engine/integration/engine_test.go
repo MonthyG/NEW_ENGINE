@@ -65,6 +65,7 @@ func startEngine(t *testing.T, id, siteJSON string) *engine {
 	}
 
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Alt-Svc", `h3=":443"; ma=86400`) // as many origins send
 		_, _ = io.WriteString(w, "upstream ok")
 	}))
 	t.Cleanup(up.Close)

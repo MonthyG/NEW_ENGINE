@@ -13,6 +13,7 @@ import (
 type Resolved struct {
 	ID, Name            string
 	Description, Type   string
+	FloatingIP          string
 	Domains, Upstreams  []string
 	Ports               []PortDoc // empty = the global HTTP (+ HTTPS) ports
 	LBPolicy            string
@@ -61,6 +62,7 @@ func Resolve(id string, d Doc) Resolved {
 		ID:                  id,
 		Name:                d.Name,
 		Description:         d.Description,
+		FloatingIP:          d.FloatingIP,
 		Type:                "proxy",
 		LBPolicy:            "round_robin",
 		HTTPRedirect:        true,

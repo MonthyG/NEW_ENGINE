@@ -177,6 +177,15 @@ the engine's admin API has no login:
   socket: the manager can't reach Caddy's default `localhost:2019` on
   another host.
 - Lines an engine logs while its tunnel is down are dropped.
+- With `engines` set, the manager compiles for transparent mode:
+  - HTTP/3 is off. Only TCP 80/443 is steered to the WAF, so a browser on
+    HTTP/3 (UDP) would go around it. An origin's `Alt-Svc` header never
+    reaches the browser either: Caddy drops it as a hop-by-hop header.
+  - Sites need `tls.mode` `uploaded` or `off`. Every engine gets every site,
+    and only the host that owns the floating IP could pass an ACME challenge.
+  - Every host name served on a protected floating IP must be a site: the
+    WAF answers unknown names with `404 unknown site` on HTTP and fails the
+    TLS handshake on HTTPS.
 
 ## Manager configuration (`manager.json`)
 
@@ -231,6 +240,7 @@ See `examples/site-shop.json` for a full example.
 |---|---|
 | `name`, `description` | Labels for the console |
 | `project` | Owning project; see [Projects and API tokens](#projects-and-api-tokens) |
+| `floating_ip` | Transparent mode: the customer's floating IP whose ports 80/443 the compute hosts steer to the WAF. Public IPv4 only. Only the operator sets it; a project's edits keep the stored value |
 | `type` | `proxy` (default), `static` or `redirect` |
 | `domains` | Host names; `*.example.com` wildcards are allowed |
 | `ports` | `[{port, https}]`; omitted = the global HTTP and HTTPS ports |

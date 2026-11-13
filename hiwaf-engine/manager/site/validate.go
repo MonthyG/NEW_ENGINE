@@ -34,6 +34,12 @@ func Validate(d Doc, geoEnabled bool) error {
 	if d.Project != "" && !ValidProject(d.Project) {
 		return verr("project", "must be 1-64 letters, digits, - or _")
 	}
+	if d.FloatingIP != "" {
+		ip := net.ParseIP(d.FloatingIP)
+		if ip == nil || ip.To4() == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || cgnat.Contains(ip) {
+			return verr("floating_ip", "must be a public IPv4 address, got %q", d.FloatingIP)
+		}
+	}
 	tlsOff := d.TLS != nil && d.TLS.Mode == "off"
 	if len(d.Domains) == 0 {
 		return verr("domains", "at least one domain is required")

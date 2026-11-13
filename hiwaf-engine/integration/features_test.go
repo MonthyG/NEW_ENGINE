@@ -107,3 +107,27 @@ func TestE2E_WaitingRoom(t *testing.T) {
 		t.Fatalf("second visitor: got %d %q, want 503 queue page", code, body)
 	}
 }
+
+// An origin's Alt-Svc must not reach the browser: in transparent mode only TCP
+// is steered to the WAF, so a browser told to use HTTP/3 (UDP) would go around
+// it. Caddy drops Alt-Svc as a hop-by-hop header; this guards that across upgrades.
+func TestE2E_OriginAltSvcNeverReachesClient(t *testing.T) {
+	startEngine(t, "s_e2e000000014", `{}`)
+	req, err := http.NewRequest(http.MethodGet, engineURL+"/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "a.test"
+	req.Header.Set("User-Agent", browserUA)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	if v := resp.Header.Get("Alt-Svc"); v != "" {
+		t.Fatalf("Alt-Svc reached the client: %q", v)
+	}
+}

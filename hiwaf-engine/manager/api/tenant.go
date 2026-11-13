@@ -87,13 +87,18 @@ func (a *API) owns(ctx context.Context, project, id string) (bool, error) {
 }
 
 // tenantDoc applies the project rules to a site a project caller writes: it
-// belongs to the caller's project whatever the document says, and it must
-// keep to the tenant limits.
-func tenantDoc(p principal, d *site.Doc) error {
+// belongs to the caller's project whatever the document says, keeps the
+// floating IP the operator gave it (prev; nil on create), and must keep to
+// the tenant limits.
+func tenantDoc(p principal, d *site.Doc, prev *site.Doc) error {
 	if p.Project == "" {
 		return nil
 	}
 	d.Project = p.Project
+	d.FloatingIP = ""
+	if prev != nil {
+		d.FloatingIP = prev.FloatingIP
+	}
 	return site.CheckTenant(*d)
 }
 

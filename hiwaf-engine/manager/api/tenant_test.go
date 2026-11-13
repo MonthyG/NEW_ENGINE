@@ -238,3 +238,33 @@ func TestDomainOwnershipProof(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, as(t, h, "", "POST", "/api/v1/sites", `{"domains":["ops.example.test"],"upstreams":["203.0.113.5:80"]}`).Code)
 	assert.Equal(t, http.StatusBadRequest, as(t, h, "alpha", "GET", "/api/v1/domain-check?domain=a%20b", "").Code)
 }
+
+func TestOnlyTheOperatorSetsTheFloatingIP(t *testing.T) {
+	h, _ := newTestAPI(t)
+	fip := func(rec *httptest.ResponseRecorder) string {
+		t.Helper()
+		require.Less(t, rec.Code, 300, rec.Body.String())
+		var v siteView
+		decodeBody(t, rec, &v)
+		return v.Resolved.FloatingIP
+	}
+	// a customer can't pick the floating IP whose traffic is steered to the WAF
+	assert.Empty(t, fip(as(t, h, "alpha", "POST", "/api/v1/sites",
+		`{"domains":["a.alpha.test"],"upstreams":["203.0.113.5:80"],"floating_ip":"203.0.113.77"}`)))
+
+	rec := as(t, h, "", "POST", "/api/v1/sites",
+		`{"project":"alpha","domains":["b.alpha.test"],"upstreams":["203.0.113.6:80"],"floating_ip":"203.0.113.6"}`)
+	var v siteView
+	decodeBody(t, rec, &v)
+	require.Equal(t, "203.0.113.6", v.Resolved.FloatingIP, rec.Body.String())
+
+	// the customer's edits keep the operator's value, whatever they send
+	assert.Equal(t, "203.0.113.6", fip(as(t, h, "alpha", "PUT", "/api/v1/sites/"+v.ID,
+		`{"domains":["b.alpha.test"],"upstreams":["203.0.113.6:80"]}`)))
+	assert.Equal(t, "203.0.113.6", fip(as(t, h, "alpha", "PATCH", "/api/v1/sites/"+v.ID, `{"floating_ip":"203.0.113.77"}`)))
+
+	for _, bad := range []string{"192.168.217.211", "100.64.255.2", "127.0.0.1", "2001:db8::1", "nope"} {
+		rec := as(t, h, "", "PATCH", "/api/v1/sites/"+v.ID, `{"floating_ip":"`+bad+`"}`)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, bad)
+	}
+}
