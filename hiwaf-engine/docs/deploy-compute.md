@@ -73,9 +73,9 @@ Every command below uses these shell variables, so you only type addresses
 here. Run this **on your laptop**, in every new terminal you open:
 
 ```sh
-COMPUTE=root@223.26.0.20     # the compute host (hk1-cmpt4)
-PORT=11911                   # its SSH port
-FIP=223.26.0.228             # the floating IP to protect
+COMPUTE=root@IP_COMPUTE    # the compute host 
+PORT=PORT                   # its SSH port
+FIP=FLOATING_IP            # the floating IP to protect
 ```
 
 *Why:* the commands then work for any host or IP. The variables only exist
@@ -90,7 +90,7 @@ This is the most common mistake. Look at the prompt:
 | Prompt | You are on |
 |---|---|
 | `you@MacBook ~ %` | your laptop (macOS has no `systemctl`, `journalctl`, `ip`) |
-| `root@hk1-cmpt4:~#` | the compute host |
+| `root@COMPUTE:~#` | the compute host |
 | `ubuntu@waf-test:~$` | the test customer VM |
 
 Most steps here run **from the laptop** and reach the server with
