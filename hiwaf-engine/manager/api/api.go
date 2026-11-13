@@ -437,6 +437,7 @@ type resolvedView struct {
 	Name        string     `json:"name"`
 	Description string     `json:"description"`
 	Project     string     `json:"project"`
+	FloatingIP  string     `json:"floating_ip"`
 	Type        string     `json:"type"`
 	Domains     []string   `json:"domains"`
 	Ports       []portView `json:"ports"`
@@ -518,7 +519,7 @@ func (a *API) view(rec store.SiteRecord) siteView {
 	r := site.Resolve(rec.ID, rec.Doc)
 	var v resolvedView
 	v.Name, v.Description, v.Type, v.Domains, v.Upstreams = r.Name, r.Description, r.Type, r.Domains, r.Upstreams
-	v.Project = rec.Doc.Project
+	v.Project, v.FloatingIP = rec.Doc.Project, r.FloatingIP
 	for _, p := range compilePorts(r, a.opt) {
 		v.Ports = append(v.Ports, portView{Port: p.Port, HTTPS: p.HTTPS})
 	}
@@ -607,7 +608,7 @@ func (a *API) createSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalOf(r)
-	if err := tenantDoc(p, &d); err != nil {
+	if err := tenantDoc(p, &d, nil); err != nil {
 		a.writeErr(w, err)
 		return
 	}
@@ -716,7 +717,7 @@ func (a *API) replaceSite(w http.ResponseWriter, r *http.Request, merge func(sto
 		if err != nil {
 			return err
 		}
-		if err := tenantDoc(principalOf(r), &d); err != nil {
+		if err := tenantDoc(principalOf(r), &d, &got.Doc); err != nil {
 			return err
 		}
 		// shortcut: DNS lookups inside the transaction hold the store's one connection

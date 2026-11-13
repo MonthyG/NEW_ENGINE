@@ -440,6 +440,7 @@ func run(cfgPath string, log *slog.Logger) error {
 		TrustedProxies:  cfg.TrustedProxies,
 		ACMEInternal:    cfg.ACMEInternal,
 		ReservedPorts:   reserved,
+		Transparent:     len(cfg.Engines) > 0,
 	}
 	var engine api.Loader
 	var probe func(context.Context) error

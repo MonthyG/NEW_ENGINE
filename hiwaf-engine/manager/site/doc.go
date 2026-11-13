@@ -55,8 +55,9 @@ func (o Optional[T]) Resolve(def *T) *T {
 type Doc struct {
 	Name         string          `json:"name,omitempty"`
 	Description  string          `json:"description,omitempty"`
-	Project      string          `json:"project,omitempty"` // owning project (an OpenStack project ID); empty = the operator's
-	Type         string          `json:"type,omitempty"`    // proxy (default) | static | redirect
+	Project      string          `json:"project,omitempty"`     // owning project (an OpenStack project ID); empty = the operator's
+	FloatingIP   string          `json:"floating_ip,omitempty"` // transparent mode: the IP whose 80/443 the computes steer here; operator-only (see tenantDoc)
+	Type         string          `json:"type,omitempty"`        // proxy (default) | static | redirect
 	Domains      []string        `json:"domains"`
 	Ports        []PortDoc       `json:"ports,omitempty"`
 	Upstreams    []string        `json:"upstreams,omitempty"`

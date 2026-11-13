@@ -449,3 +449,34 @@ func TestLogsStreamToNetworkForAFleet(t *testing.T) {
 	assert.Equal(t, "unix//data/access.sock", logs["hi_access"].Writer["address"])
 	assert.NotNil(t, servers(t, cfg)["plain"].(map[string]any)["logs"], "sites log access with only AccessLogNet set")
 }
+
+func TestTransparentModeKeepsTrafficOnSteeredPorts(t *testing.T) {
+	s := site.Resolve("s_aaaaaaaaaaaa", site.Doc{Domains: []string{"a.com"}, Upstreams: []string{"https://203.0.113.10:443"},
+		TLS: &site.TLSDoc{Mode: "uploaded"}})
+	certs := map[string]site.Cert{"s_aaaaaaaaaaaa": {CertPEM: "CERT", KeyPEM: "KEY"}}
+	o := baseOptions()
+	o.Transparent = true
+	cfg, err := Config([]site.Resolved{s}, certs, o)
+	require.NoError(t, err)
+	for name, srv := range servers(t, cfg) {
+		assert.Equal(t, []string{"h1", "h2"}, srv.(map[string]any)["protocols"], "no HTTP/3 on %s: UDP isn't steered", name)
+	}
+
+	// Off by default: CNAME mode keeps HTTP/3.
+	cfg, err = Config([]site.Resolved{s}, certs, baseOptions())
+	require.NoError(t, err)
+	assert.Nil(t, servers(t, cfg)["waf"].(map[string]any)["protocols"])
+}
+
+func TestTransparentModeRefusesAutoTLS(t *testing.T) {
+	o := baseOptions()
+	o.Transparent = true
+	auto := site.Resolve("s_aaaaaaaaaaaa", site.Doc{Domains: []string{"a.com"}, Upstreams: []string{"203.0.113.10:80"}})
+	_, err := Config([]site.Resolved{auto}, nil, o)
+	require.ErrorContains(t, err, "tls.mode uploaded or off")
+
+	off := site.Resolve("s_bbbbbbbbbbbb", site.Doc{Domains: []string{"b.com"}, Upstreams: []string{"203.0.113.11:80"},
+		TLS: &site.TLSDoc{Mode: "off"}})
+	_, err = Config([]site.Resolved{off}, nil, o)
+	require.NoError(t, err)
+}

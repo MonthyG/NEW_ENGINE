@@ -32,6 +32,15 @@ type Options struct {
 	// the engine streams those logs to instead, for a manager on another host. The
 	// events still go to EventLog too, so a dropped stream can be recovered by hand.
 	EventLogNet, AccessLogNet string
+
+	// Transparent is set when the engines sit on the compute hosts in front of
+	// customers' floating IPs. Only TCP 80/443 is steered to them, so HTTP/3
+	// (UDP) is off, or browsers would switch to UDP and go around the WAF; an
+	// origin's own Alt-Svc is already dropped by Caddy as a hop-by-hop header
+	// (see TestE2E_OriginAltSvcNeverReachesClient). Automatic certificates are refused: every
+	// engine gets every site, but only the host owning the floating IP can pass
+	// the ACME challenge, and the others would fail in a loop.
+	Transparent bool
 }
 
 func (o Options) accessLogOn() bool { return o.AccessLog != "" || o.AccessLogNet != "" }
@@ -188,6 +197,9 @@ func Config(sites []site.Resolved, certs map[string]site.Cert, opt Options) (map
 		}
 		if s.Type == "static" && opt.StaticDir == "" {
 			return nil, fmt.Errorf("site %s: static sites need a static directory", s.ID)
+		}
+		if opt.Transparent && s.TLSMode == "auto" {
+			return nil, fmt.Errorf("site %s: transparent mode needs tls.mode uploaded or off; automatic certificates don't work with an engine on every host", s.ID)
 		}
 		if s.TLSMode == "uploaded" {
 			c, key, ok := certFor(s, certs)
@@ -362,6 +374,9 @@ func server(lp *listenPlan, opt Options) map[string]any {
 	srv := map[string]any{
 		"listen": []string{fmt.Sprintf(":%d", lp.port)},
 		"routes": routes,
+	}
+	if opt.Transparent {
+		srv["protocols"] = []string{"h1", "h2"}
 	}
 	if len(errRoutes) > 0 {
 		srv["errors"] = map[string]any{"routes": errRoutes}

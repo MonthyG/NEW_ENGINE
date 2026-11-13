@@ -1,0 +1,18 @@
+# Install on each compute host:
+#   install -m 755 waf-steer.sh /usr/local/sbin/
+#   install -m 644 waf-steer.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now waf-steer
+# Stopping the service rolls everything back (ExecStopPost).
+[Unit]
+Description=HostingInside WAF: steer protected floating IPs to the engine
+After=docker.service kolla-neutron_l3_agent-container.service
+Wants=docker.service
+
+[Service]
+ExecStart=/usr/local/sbin/waf-steer.sh loop
+ExecStopPost=/usr/local/sbin/waf-steer.sh off
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
