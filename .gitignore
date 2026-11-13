@@ -20,3 +20,6 @@ npm-debug.log*
 
 # typescript
 *.tsbuildinfo
+
+# server snapshots from waf-snapshot.sh (internal IPs, firewall rules)
+/snapshots/

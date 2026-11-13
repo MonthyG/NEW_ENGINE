@@ -7,7 +7,9 @@ Core Rule Set.
 | Folder | What it is |
 |---|---|
 | [`hiwaf-engine/`](hiwaf-engine/) | The engine (`hi-waf`: Caddy + Coraza + our modules) and the control plane (`manager`: REST API, console, SQLite), in Go. |
-| [`Dashboard/`](Dashboard/) | The customer-facing web dashboard (React + Vite). Only a UI: it talks to the manager API. |
+
+The customer-facing dashboard (React + Vite) lives in its own repository,
+[`cloudinside-dashboard`](https://github.com/MonthyG/cloudinside-dashboard). It's only a UI and talks to the manager API.
 
 ```
 Browser ──► Dashboard ──► manager API (:9443) ──► hi-waf engine ──► customer origin
@@ -28,15 +30,13 @@ Browser ──► Dashboard ──► manager API (:9443) ──► hi-waf engin
 
 ```sh
 cd hiwaf-engine && sudo ./scripts/install.sh --acme-internal   # engine + manager on one host
-cd Dashboard && npm install && npm run dev                      # dashboard against a local manager
 ```
 
 ## Tests
 
 ```sh
 cd hiwaf-engine && gofmt -l cmd engine manager integration && go vet ./... && go test -race ./...
-cd Dashboard && npx tsc --noEmit
 ```
 
-Each folder's README has the details: configuration, the API, operations and
+The engine's README has the details: configuration, the API, operations and
 known limits.
